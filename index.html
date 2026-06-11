@@ -629,15 +629,7 @@
   <!-- Left Panel -->
   <div class="left">
 
-    <!-- API Key -->
-    <div class="api-section">
-      <span class="label">Gemini API Key</span>
-      <div style="display:flex;gap:8px;">
-        <input type="password" class="api-input" id="apiKey" placeholder="AIza..." style="flex:1;">
-        <button class="save-key-btn" id="saveKeyBtn" onclick="saveApiKey()">적용</button>
-      </div>
-      <div class="key-saved" id="keySaved">✓ 적용됨</div>
-    </div>
+
 
     <!-- Recorder -->
     <div class="recorder-section">
@@ -879,29 +871,10 @@ function removeFile() {
 }
 
 // ── UI helpers ───────────────────────────────────────
-function saveApiKey() {
-  const key = document.getElementById('apiKey').value.trim();
-  if (!key) return showToast('API 키를 입력해주세요');
-  const btn = document.getElementById('saveKeyBtn');
-  const saved = document.getElementById('keySaved');
-  btn.textContent = '✓ 적용됨';
-  btn.classList.add('saved');
-  btn.disabled = true;
-  saved.classList.add('show');
-  updateGenerateBtn();
-  setTimeout(() => {
-    btn.textContent = '적용';
-    btn.classList.remove('saved');
-    btn.disabled = false;
-  }, 3000);
-}
-
 function updateGenerateBtn() {
   const hasSource = recordedBlob || uploadedFile;
-  const hasKey = document.getElementById('apiKey').value.trim();
-  document.getElementById('generateBtn').disabled = !(hasSource && hasKey);
+  document.getElementById('generateBtn').disabled = !hasSource;
 }
-document.getElementById('apiKey').addEventListener('input', updateGenerateBtn);
 
 function setState(state) {
   document.getElementById('emptyState').style.display = state === 'empty' ? 'flex' : 'none';
@@ -918,8 +891,7 @@ function showToast(msg) {
 
 // ── Generate ─────────────────────────────────────────
 async function generate() {
-  const apiKey = document.getElementById('apiKey').value.trim();
-  if (!apiKey) return showToast('API 키를 입력해주세요');
+  const apiKey = 'AQ.Ab8RN6LUAIMBhKezKJTZDSfqnfG8VUwuWb8ZrWbu2eFn1vI7aw';
 
   const source = recordedBlob || uploadedFile;
   if (!source) return showToast('녹음 또는 파일을 준비해주세요');
