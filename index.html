@@ -94,6 +94,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 14px;
+  margin-top: 30px;
 }
 .record-btn {
   width: 80px; height: 80px;
@@ -455,6 +456,52 @@ body {
 .brief-row-label { font-size: 11px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
 .brief-item { font-size: 13px; color: var(--text2); padding: 6px 10px; background: var(--bg3); border-radius: 6px; }
 
+/* 녹음 모드 탭 */
+.rec-tabs {
+  display: flex;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+}
+.rec-tab {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text3);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.rec-tab:hover { color: var(--text2); }
+.rec-tab.active {
+  background: var(--bg3);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.rec-tab-icon { font-size: 13px; }
+.mode-notice {
+  font-size: 11px;
+  color: var(--text3);
+  text-align: center;
+  line-height: 1.6;
+  padding: 9px 12px;
+  background: var(--bg2);
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  display: none;
+  margin-top: 4px;
+}
+.mode-notice.show { display: block; }
+
 /* Toast */
 .toast {
   position: fixed;
@@ -517,8 +564,26 @@ body {
   <div class="left">
 
     <!-- 녹음 -->
-    <div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
       <span class="label">녹음</span>
+
+      <!-- 모드 탭 -->
+      <div class="rec-tabs">
+        <button class="rec-tab active" id="recTab-mic" onclick="switchRecTab('mic')">
+          <span class="rec-tab-icon">🎙</span> 마이크
+        </button>
+        <button class="rec-tab" id="recTab-system" onclick="switchRecTab('system')">
+          <span class="rec-tab-icon">🖥</span> 시스템 오디오
+        </button>
+      </div>
+
+      <!-- 안내 문구 (시스템 탭 선택 시) -->
+      <div class="mode-notice" id="onlineNotice">
+        팝업에서 <b style="color:var(--text)">탭</b> 또는 <b style="color:var(--text)">전체 화면</b> 선택 후<br>
+        <b style="color:var(--green)">✓ 오디오 공유</b> 체크박스를 반드시 클릭하세요
+      </div>
+
+      <!-- 공통 녹음 버튼 -->
       <div class="record-btn-wrap">
         <div class="timer hidden" id="timer">00:00</div>
         <button class="record-btn idle" id="recordBtn" onclick="toggleRecord()">
@@ -527,7 +592,8 @@ body {
         <span class="record-status" id="recordStatus">클릭하여 녹음 시작</span>
       </div>
       <div class="waveform" id="waveform"></div>
-      <!-- 녹음 저장 버튼 -->
+
+      <!-- 저장 버튼 -->
       <button class="save-rec-btn" id="saveRecBtn" onclick="saveRecording()">
         ⬇ 녹음 파일 저장
       </button>
@@ -613,7 +679,7 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-const GEMINI_API_KEY = 'GEMINI_API_KEY_HERE';
+const GEMINI_API_KEY = 'AQ.Ab8RN6LUAIMBhKezKJTZDSfqnfG8VUwuWb8ZrWbu2eFn1vI7aw';
 
 let mediaRecorder = null;
 let audioChunks = [];
@@ -627,6 +693,7 @@ let analyser = null;
 let dataArray = null;
 let lastMinutes = null;
 let currentTab = 'medium';
+let recMode = 'mic'; // 'mic' | 'system'
 
 // ── Waveform ─────────────────────────────
 const waveform = document.getElementById('waveform');
@@ -660,12 +727,31 @@ function startTimer() {
 }
 function stopTimer() { clearInterval(timerInterval); }
 
-// ── Recording ────────────────────────────
-async function toggleRecord() {
-  isRecording ? stopRecording() : await startRecording();
+// ── 녹음 모드 탭 ─────────────────────────
+function switchRecTab(mode) {
+  recMode = mode;
+  document.getElementById('recTab-mic').classList.toggle('active', mode === 'mic');
+  document.getElementById('recTab-system').classList.toggle('active', mode === 'system');
+  const notice = document.getElementById('onlineNotice');
+  notice.style.display = mode === 'system' ? 'block' : 'none';
+  if (!isRecording) {
+    document.getElementById('recordStatus').textContent =
+      mode === 'mic' ? '클릭하여 녹음 시작' : '클릭하여 시스템 오디오 녹음 시작';
+  }
 }
 
-async function startRecording() {
+// ── Recording ────────────────────────────
+async function toggleRecord() {
+  if (isRecording) {
+    stopRecording();
+  } else if (recMode === 'mic') {
+    await startMicRecording();
+  } else {
+    await startSystemRecording();
+  }
+}
+
+async function startMicRecording() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const ctx = new AudioContext();
@@ -734,6 +820,57 @@ function saveRecording() {
   showToast('녹음 파일이 저장되었습니다');
 }
 
+// ── 시스템 오디오 녹음 ───────────────────
+async function startSystemRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { displaySurface: 'browser' },
+      audio: { echoCancellation: false, noiseSuppression: false, sampleRate: 44100 }
+    });
+
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length === 0) {
+      stream.getTracks().forEach(t => t.stop());
+      showToast('❗ 오디오 공유 체크박스를 선택해주세요');
+      return;
+    }
+
+    const audioStream = new MediaStream(audioTracks);
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(audioStream);
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      recordedBlob = new Blob(audioChunks, { type: 'audio/webm' });
+      uploadedFile = null;
+      document.getElementById('fileInfo').classList.remove('show');
+      document.getElementById('saveRecBtn').classList.add('show');
+      updateGenerateBtn();
+      stream.getTracks().forEach(t => t.stop());
+    };
+
+    // 화면 공유 종료 시 자동 중지
+    stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+      if (isRecording) stopRecording();
+    });
+
+    mediaRecorder.start();
+    isRecording = true;
+    document.getElementById('saveRecBtn').classList.remove('show');
+
+    const btn = document.getElementById('recordBtn');
+    btn.classList.replace('idle', 'recording');
+    document.getElementById('recordStatus').textContent = '시스템 오디오 녹음 중... 클릭하여 중지';
+    document.getElementById('recordStatus').classList.add('recording');
+    document.getElementById('timer').classList.remove('hidden');
+    waveform.classList.add('active');
+    startTimer();
+
+  } catch (err) {
+    if (err.name !== 'NotAllowedError') showToast('오류: ' + err.message);
+    else showToast('화면 공유가 취소되었습니다');
+  }
+}
+
 // ── File upload ──────────────────────────
 function onDragOver(e) { e.preventDefault(); document.getElementById('uploadArea').classList.add('dragover'); }
 function onDragLeave(e) { document.getElementById('uploadArea').classList.remove('dragover'); }
@@ -797,7 +934,7 @@ function switchTab(tab) {
 
 // ── Generate ─────────────────────────────
 async function generate() {
-  const apiKey = 'AQ.Ab8RN6LUAIMBhKezKJTZDSfqnfG8VUwuWb8ZrWbu2eFn1vI7aw';
+  const apiKey = GEMINI_API_KEY;
   const source = recordedBlob || uploadedFile;
   if (!source) return showToast('녹음 또는 파일을 준비해주세요');
 
